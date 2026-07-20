@@ -90,3 +90,10 @@ export const deleteTable = async () => {
 
   table = null;
 };
+
+export const initializeLanceDB = async () => {
+  await connectLanceDB();
+  await getOrCreateTable();
+
+  console.log("✅ LanceDB initialized.");
+};

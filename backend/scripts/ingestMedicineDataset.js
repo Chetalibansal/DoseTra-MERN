@@ -8,6 +8,7 @@ import {
 
 const args = process.argv.slice(2);
 const clearFlag = args.includes("--clear");
+const resumeFlag = args.includes("--resume");
 const limitArg = args.find((arg) => arg.startsWith("--limit="));
 const batchArg = args.find((arg) => arg.startsWith("--batch="));
 const limit = limitArg ? Number(limitArg.split("=")[1]) : null;
@@ -29,6 +30,7 @@ const run = async () => {
     const results = await ingestMedicineDatasetToLance(entries, {
       clearExisting: clearFlag,
       batchSize,
+      resume : resumeFlag,
     });
 
     console.log("LanceDB ingest complete:", results);
