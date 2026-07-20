@@ -73,7 +73,25 @@ export const processChatMessage = async (userId, message) => {
     return { reply: "User not found.", source: "database" };
   }
 
-  const intent = detectIntent(message);
+  let intent = detectIntent(message);
+  if (intent === "HEALTH_AI") {
+  try {
+    const retrieval = await retrieveMedicineContext(message, [], { topK: 1 });
+
+    const bestMatch = retrieval.documents?.[0];
+
+
+    if (
+      bestMatch &&
+      bestMatch.relevanceScore !== null &&
+      bestMatch.relevanceScore > 0.55
+    ) {
+      intent = "MEDICINE_ADVICE";
+    }
+  } catch (err) {
+    console.error("Fallback intent detection failed:", err.message);
+  }
+}
   const userName = user.name?.trim().split(/\s+/)[0] || "there";
   const timezone = user.timezone || "UTC";
 
@@ -85,7 +103,6 @@ export const processChatMessage = async (userId, message) => {
   if (isMedicineAdviceIntent(intent)) {
     const medicines = await fetchUserMedicines(userId);
     const retrievalResult = await retrieveMedicineContext(message, medicines, { topK: 4 });
-
     if (!retrievalResult.hasKnowledgeBase) {
       try {
         return await answerFromDuckDuckGo({ message, userName });
@@ -103,7 +120,7 @@ export const processChatMessage = async (userId, message) => {
       retrievalResult,
       userMessage: message,
     });
-
+    
     if (!hasContext) {
       try {
         return await answerFromDuckDuckGo({ message, userName });

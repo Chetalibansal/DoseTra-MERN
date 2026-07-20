@@ -1,3 +1,4 @@
+import fs from "fs";
 import {
   insertDocuments,
   countDocuments,
@@ -16,6 +17,40 @@ import {
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
+const CHECKPOINT_FILE = path.join(
+  __dirname,
+  "../../storage/ingest_checkpoint.json"
+);
+
+function loadCheckpoint() {
+  if (!fs.existsSync(CHECKPOINT_FILE)) {
+    return 0;
+  }
+
+  const data = JSON.parse(
+    fs.readFileSync(CHECKPOINT_FILE, "utf8")
+  );
+
+  return data.lastProcessed || 0;
+}
+
+function saveCheckpoint(index) {
+  fs.writeFileSync(
+    CHECKPOINT_FILE,
+    JSON.stringify(
+      { lastProcessed: index },
+      null,
+      2
+    )
+  );
+}
+
+function clearCheckpoint() {
+  if (fs.existsSync(CHECKPOINT_FILE)) {
+    fs.unlinkSync(CHECKPOINT_FILE);
+  }
+}
+
 const stableId = (value) =>
   value
     .toLowerCase()
@@ -25,7 +60,7 @@ const stableId = (value) =>
 
 export const ingestMedicineDatasetToLance = async (
   entries,
-  { clearExisting = false, batchSize = 64 } = {}
+  { clearExisting = false, batchSize = 50, resume = false } = {}
 ) => {
   if (!Array.isArray(entries) || !entries.length) {
     throw new Error("Dataset must be a non-empty array of medicine objects");
@@ -33,16 +68,22 @@ export const ingestMedicineDatasetToLance = async (
 
   if (clearExisting) {
     await deleteTable();
+    clearCheckpoint();
   }
+
+  const startIndex = resume ? loadCheckpoint() : 0;
 
   const results = { chunks: 0, medicines: 0, skipped: 0, errors: [] };
   let batch = [];
 
-  const flush = async () => {
-    if (!batch.length) return;
+  const flush = async (currentIndex) => {
+    if (!batch.length) return true;
 
-  const embeddings = await embedTexts(batch.map((item) => item.text));
-    const rows = batch.map((item, index) => ({
+    try {  
+         const embeddings = await embedTexts(batch.map((item) => item.text));
+
+    
+   const rows = batch.map((item, index) => ({
     id: item.id,
     text: item.text,
     vector: embeddings[index],
@@ -60,12 +101,32 @@ export const ingestMedicineDatasetToLance = async (
   throw new Error("Embedding count mismatch");
 }
     await insertDocuments(rows);
+    saveCheckpoint(currentIndex);
 
     results.chunks += batch.length;
     batch = [];
-  };
 
-  for (const raw of entries) {
+    return true;
+}
+catch(err){
+       const message = err.message || "";
+
+    if (
+        message.includes("429") ||                                                                                                                                                                                                                                                                        
+        message.includes("RESOURCE_EXHAUSTED")
+    ) {
+
+        console.log("Gemini quota exhausted.");
+        console.log(`Stopping ingestion.`);
+
+        return false;
+    }
+        throw err ;
+  }
+  };
+   let quotaExceeded = false;
+  for (let i = startIndex; i < entries.length; i++) {
+    const raw = entries[i];
     try {
       const medicine = normalizeMedicineEntry(raw);
       if (!medicine.name) {
@@ -96,14 +157,19 @@ export const ingestMedicineDatasetToLance = async (
       results.medicines += 1;
 
       if (batch.length >= batchSize) {
-        await flush();
+        const success = await flush(i+1);
+        if (success === false) {
+          quotaExceeded = true;
+          break;
+      }
       }
     } catch (err) {
       results.errors.push({ name: raw.name, error: err.message });
     }
   }
-
-  await flush();
+if (!quotaExceeded) {
+    await flush(entries.length);
+}
   results.tableCount = await countDocuments();
   results.tableName = TABLE_NAME;
   return results;

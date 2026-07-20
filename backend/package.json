@@ -14,7 +14,9 @@
   "description": "",
   "dependencies": {
     "@lancedb/lancedb": "^0.30.0",
+    "adm-zip": "^0.6.0",
     "apache-arrow": "^18.1.0",
+    "axios": "^1.18.1",
     "bcrypt": "^6.0.0",
     "chromadb": "^3.5.0",
     "cors": "^2.8.5",
