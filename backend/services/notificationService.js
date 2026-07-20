@@ -65,7 +65,13 @@ export const startNotificationJob = () => {
 
         for (const notif of notifications) {
           const dose = notif.doseId;
-          const schedule = dose?.scheduleId;
+          // Skip if the dose has already been taken
+          if (!dose || dose.status !== "pending") {
+            notif.status = "cancelled";
+            await notif.save();
+            continue;
+          }
+          const schedule = dose.scheduleId;
           const medicine = schedule?.medicineId;
 
           const personalizedNote =
