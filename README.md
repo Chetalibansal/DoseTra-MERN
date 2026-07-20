@@ -100,18 +100,21 @@ DoseTra/
 │
 ├── backend/
 │   ├── controllers/
+│   ├── data/
+│   ├── db/
 │   ├── middleware/
 │   ├── models/
 │   ├── routes/
+|   ├── scripts/
 │   ├── utils/
 │   ├── services/
+|   |     |──chatbot/
+|   |     ├──rag/   
 │   ├── config/
 │   └── server.js
-│
-├── ml-service/
-│   ├── app.py
-│   ├── rag.py
-│   └── requirements.txt
+│   └── app.js
+│   └── start.js
+|
 │
 └── README.md
 ```
@@ -166,25 +169,49 @@ PORT=7000
 
 MONGO_URI=
 
-JWT_SECRET=
+JWT_SECRET_KEY=
 
-CLIENT_URL=http://localhost:5173
+JWT_EXPIRES=
+
+EMAIL_USER=
+
+EMAIL_PASS = 
+
+FRONTEND_URL = http://localhost:5173
 
 GOOGLE_CLIENT_ID=
 
 GOOGLE_CLIENT_SECRET=
 
-GOOGLE_CALLBACK_URL=
+GOOGLE_CALENDAR_REDIRECT_URI=
+
+GEMINI_API_KEY =
+
+DEFAULT_TIMEZONE =
+
+GROQ_API_KEY =
+
+GROQ_MODEL = llama-3.3-70b-versatile
+
+GEMINI_EMBEDDINGS_MODEL = gemini-embedding-001
+
+MEDICINE_DB_URL = 
 ```
 
 ---
 
-## AI Service
+## FRONTEND
+
+Create a `.env` file inside `frontend`.
 
 ```env
-GROQ_API_KEY=
+VITE_FRONTEND_URL = http://localhost:5173
 
-EMBEDDING_MODEL=sentence-transformers/all-MiniLM-L6-v2
+VITE_BACKEND_URL = http://localhost:7000
+
+VITE_GOOGLE_CLIENT_ID =
+
+GOOGLE_CLIENT_SECRET = 
 ```
 
 ---
