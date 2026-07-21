@@ -7,19 +7,36 @@ import { updateUserAiReminderNote } from "../services/adherenceAnalyticsService.
 // Mark dose as taken
 export const markTaken = async (req, res) => {
   try {
-    const dose = await Dose.findOneAndUpdate(
-      { doseId: req.params.id },
+    const dose = await Dose.findByIdAndUpdate(
+       req.params.id,
       { status: "taken" },
       { new: true }
     );
 
-    await DoseLog.create({ doseId: req.params.id, action: "taken" });
+     if (!dose) {
+      return res.status(404).json({ message: "Dose not found" });
+    }
+
+    // Cancel any pending notification for this dose
+    await Notification.updateMany(
+      {
+        doseId: dose._id,
+        status: "pending",
+      },
+      {
+        $set: {
+          status: "cancelled",
+        },
+      }
+    );
+
+    await DoseLog.create({ doseId: dose._id, action: "taken" });
     
     if (req.body.userId) {
       await updateUserAiReminderNote(req.body.userId).catch(console.error);
     }
 
-    res.json(dose);
+    res.json({ success: true, dose });
   } catch (err) {
     console.error("Error marking dose taken:", err);
     res.status(500).json({ message: "Failed to mark dose as taken" });
@@ -29,8 +46,8 @@ export const markTaken = async (req, res) => {
 // Mark dose as missed + schedule smart reminder
 export const markMissed = async (req, res) => {
   try {
-    const dose = await Dose.findOneAndUpdate(
-      { doseId: req.params.id },
+    const dose = await Dose.findByIdAndUpdate(
+      req.params.id,
       { status: "missed" },
       { new: true }
     );
@@ -38,7 +55,7 @@ export const markMissed = async (req, res) => {
       return res.status(404).json({ message: "Dose not found" });
     }
 
-    await DoseLog.create({ doseId: req.params.id, action: "missed" });
+    await DoseLog.create({ doseId: dose._id, action: "missed" });
     
     if (req.body.userId) {
       await updateUserAiReminderNote(req.body.userId).catch(console.error);
@@ -50,10 +67,13 @@ export const markMissed = async (req, res) => {
         try {
           await createNotification({
             userId: user._id,
-            type: "reminder",
+            doseId: dose._id,
+            type: "browser",
             title: "Missed Dose Reminder",
-            message: `Don’t forget! You missed your dose (${dose.doseId}). Please take it now.`,
+            message: `You missed your scheduled dose (${dose.doseId}). Please take it as soon as possible .`,
             subscription: user.subscription || null, // optional: for push notifications
+            status: "pending",
+            scheduledAt: new Date(),
           });
         } catch (err) {
           console.error("Failed to send smart reminder:", err);
@@ -71,17 +91,21 @@ export const markMissed = async (req, res) => {
 // Reschedule dose
 export const rescheduleDose = async (req, res) => {
   try {
-    const dose = await Dose.findOneAndUpdate(
-      { doseId: req.params.id },
+    const dose = await Dose.findByIdAndUpdate(
+      req.params.id,
       { scheduledAt: req.body.scheduledAt },
       { new: true }
     );
 
-    await DoseLog.create({ doseId: req.params.id, action: "rescheduled" });
+    if (!dose) {
+      return res.status(404).json({ message: "Dose not found" });
+    }
+
+    await DoseLog.create({ doseId: dose._id, action: "rescheduled" });
     if (req.body.userId) {
       await updateUserAiReminderNote(req.body.userId).catch(console.error);
     }
-    res.json(dose);
+    res.json({ success: true, dose });
   } catch (err) {
     console.error("Error rescheduling dose:", err);
     res.status(500).json({ message: "Failed to reschedule dose" });
@@ -91,11 +115,10 @@ export const rescheduleDose = async (req, res) => {
 // Get dose logs
 export const getDoseLogs = async (req, res) => {
   try {
-    const logs = await DoseLog.find();
-    res.json(logs);
+    const logs = await DoseLog.find().sort({ createdAt: -1 });
+    res.json( logs );
   } catch (err) {
     console.error("Error fetching dose logs:", err);
     res.status(500).json({ message: "Failed to fetch dose logs" });
   }
 };
-// Export the controller functions
